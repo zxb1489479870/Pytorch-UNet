@@ -12,6 +12,8 @@ from eval import eval_net
 from unet import UNet
 from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
 
+import time
+
 def train_net(net,
               epochs=5,
               batch_size=1,
@@ -93,8 +95,10 @@ def train_net(net,
             print('Validation Dice Coeff: {}'.format(val_dice))
 
         if save_cp:
-            torch.save(net.state_dict(),
-                       dir_checkpoint + 'CP{}.pth'.format(epoch + 1))
+            if gpu:
+                torch.save(net.state_dict(), dir_checkpoint + 'CP_GPU{}.pth'.format(epoch + 1))
+            else:
+                torch.save(net.state_dict(), dir_checkpoint + 'CP_CPU{}.pth'.format(epoch + 1))
             print('Checkpoint {} saved !'.format(epoch + 1))
 
 
@@ -129,14 +133,22 @@ if __name__ == '__main__':
     if args.gpu:
         net.cuda()
         # cudnn.benchmark = True # faster convolutions, but more memory
+    def _time():
+        if args.gpu:
+            torch.cuda.synchronize()
+        return time.time()
 
     try:
+        t1 = _time()
         train_net(net=net,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
                   lr=args.lr,
                   gpu=args.gpu,
                   img_scale=args.scale)
+        t2 = _time()
+        time_total = t2 - t1
+        print("The running time is %10.2f (s)" % time_total)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')
